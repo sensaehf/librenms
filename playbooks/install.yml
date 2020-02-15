@@ -1,0 +1,360 @@
+- hosts: localhost
+  tasks:
+  - name: Loading pbvars.yaml config file
+    include_vars:
+      file: /etc/sensa/librenms/pbvars.yaml
+      name: pbvars
+
+  # Set up Database directory with permissions
+  - name: Check if DB directory exists
+    stat:
+      path: "{{ pbvars['BASE_DIR'] }}/db"
+    register: db_folder
+
+  - name: Create DB directory if doesn't exists
+    file:
+      path: "{{ pbvars['BASE_DIR'] }}/db"
+      state: directory
+      mode: "0755"
+      group: "999"
+      owner: "999"
+    when: db_folder.stat.exists == false
+
+
+  # Set up rrd-journal and rrd directories with perms
+  - name: Check if RRD directory exists
+    stat:
+      path: "{{ pbvars['BASE_DIR'] }}/rrd-journal"
+    register: rrdj_folder
+
+  - name: Create RRD directory if doesn't exists
+    file:
+      path: "{{ pbvars['BASE_DIR'] }}/rrd-journal"
+      state: directory
+      mode: "0755"
+      group: "1000"
+      owner: "1000"
+    when: rrdj_folder.stat.exists == false
+
+  - name: Check if RRD directory exists
+    stat:
+      path: "{{ pbvars['BASE_DIR'] }}/librenms/rrd"
+    register: rrd_folder
+
+  - name: Create RRD directory if doesn't exists
+    file:
+      path: "{{ pbvars['BASE_DIR'] }}/librenms/rrd"
+      state: directory
+      mode: "0755"
+      group: "1000"
+      owner: "1000"
+    when: rrd_folder.stat.exists == false
+
+
+  # Set up librenms directory with perms
+  - name: Check if librenms directory exists
+    stat:
+      path: "{{ pbvars['BASE_DIR'] }}/librenms"
+    register: librenms_folder
+
+  - name: Create LibreNMS directory if doesn't exists
+    file:
+      path: "{{ pbvars['BASE_DIR'] }}/librenms"
+      state: directory
+      mode: "0755"
+      group: "1000"
+      owner: "1000"
+    when: librenms_folder.stat.exists == false
+
+  # Set up Oxidized directory with perms
+  - name: Check if Oxidized directory exists
+    stat:
+      path: "{{ pbvars['BASE_DIR'] }}/oxidized"
+    register: oxidized_folder
+
+  - name: Create Oxidized directory if doesn't exists
+    file:
+      path: "{{ pbvars['BASE_DIR'] }}/oxidized"
+      state: directory
+      mode: "0755"
+      group: "1000"
+      owner: "1000"
+    when: oxidized_folder.stat.exists == false
+
+  - name: write Oxidized config file
+    template:
+      src: templates/oxidized/config.j2
+      dest: "{{ pbvars['BASE_DIR'] }}/oxidized/config"
+      mode: 0755
+
+  - name: Check if Oxidized directory exists
+    stat:
+      path: "/etc/sensa/librenms/tmp"
+    register: tmp_folder
+
+  - name: Create Oxidized directory if doesn't exists
+    file:
+      path: "/etc/sensa/librenms/tmp"
+      state: directory
+      mode: "0755"
+    when: tmp_folder.stat.exists == false
+
+  - name: write Oxidized sql file
+    template:
+      src: templates/oxidized/sql.j2
+      dest: /etc/sensa/librenms/tmp/insert.sql
+      mode: 0755
+
+  - name: Create a network for internal librenms communications
+    docker_network:
+      name: librenms_network
+      attachable: "yes"
+      labels:
+        is.sensa.librenms.network: librenms_network
+        is.sensa.librenms.project: librenms
+      ipam_config:
+        - subnet: "172.18.0.0/24" 
+          gateway: "172.18.0.1"
+
+  - name: Run database container
+    docker_container:
+      name: 'librenms_db'
+      image: 'mariadb:10.2'
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      command: mysqld --sql-mode= --innodb-file-per-table=1 --lower-case-table-names=0 --character-set-server=utf8 --collation-server=utf8_unicode_ci
+      env:
+        TZ: "{{ pbvars['TZ'] }}"
+        MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        MYSQL_DATABASE: "{{ pbvars['MYSQL_DATABASE'] }}"
+        MYSQL_USER: "{{ pbvars['MYSQL_USER'] }}"
+        MYSQL_PASSWORD: "{{ pbvars['MYSQL_PASSWORD'] }}"
+      volumes:
+        "{{ pbvars['BASE_DIR'] }}/db:/var/lib/mysql:rw"
+      restart_policy: "always"
+    register: db_cont_metadata
+
+  - name: Get mysql test container
+    docker_container:
+      name: 'mysql'
+      image: 'mysql'
+      state: 'present'
+
+  - name: Wait for database to be available
+    shell: docker run --network="librenms_network" --rm mysql sh -c 'mysql -hlibrenms_db -P3306 -u{{ pbvars["MYSQL_USER"] }} -p{{ pbvars["MYSQL_PASSWORD"] }} || true'
+    register: dbstatus
+    until: dbstatus.stderr.find("Can't connect to MySQL") == -1
+    retries: "10"
+    delay: "3"
+
+  - name: Run MEMCACHED container
+    docker_container:
+      name: 'librenms_memcached'
+      image: 'memcached:alpine'
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      env:
+        TZ: "{{ pbvars['TZ'] }}"
+      restart_policy: "always"
+
+  - name: Run RRD container
+    docker_container:
+      name: 'librenms_rrdcached'
+      image: 'crazymax/rrdcached'
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      env:
+        TZ: "{{ pbvars['TZ'] }}"
+        LOG_LEVEL: "LOG_INFO"
+        WRITE_TIMEOUT: "1800"
+        WRITE_JITTER: "1800"
+        WRITE_THREADS: "4"
+        FLUSH_DEAD_DATA_INTERVAL: "3600"
+      volumes:
+        - "{{ pbvars['BASE_DIR'] }}/librenms/rrd:/data/db:rw"
+        - "{{ pbvars['BASE_DIR'] }}/rrd-journal:/data/journal:rw"
+      restart_policy: "always"
+
+  - name: Run SMTP container
+    docker_container:
+      name: 'librenms_smtp'
+      image: 'juanluisbaptiste/postfix'
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      env:
+        SERVER_HOSTNAME: "{{ pbvars['URL'] }}"
+        SMTP_SERVER: "{{ pbvars['SMTP_SERVER'] }}"
+        SMTP_USERNAME: "{{ pbvars['SMTP_USERNAME'] }}"
+        SMTP_PASSWORD: "{{ pbvars['SMTP_PASSWORD'] }}"
+      volumes:
+        "/etc/localtime:/etc/localtime:ro"
+      restart_policy: "always"
+
+
+  - name: Run LibreNMS container
+    docker_container:
+      name: 'librenms'
+      image: librenms/librenms:latest
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      domainname: "{{ pbvars['DOMAIN'] }}"
+      hostname: "{{ pbvars['HOST'] }}"
+      ports: 
+        - "0.0.0.0:8000:8000/tcp"
+      env:
+        TZ: "{{ pbvars['TZ'] }}"
+        PUID: "{{ pbvars['PUID'] }}"
+        PGID: "{{ pbvars['PGID'] }}"
+        DB_HOST: librenms_db
+        DB_NAME: "{{ pbvars['MYSQL_DATABASE'] }}"
+        DB_USER: "{{ pbvars['MYSQL_USER'] }}"
+        DB_PASSWORD: "{{ pbvars['MYSQL_PASSWORD'] }}"
+        DB_TIMEOUT: "30"
+      volumes:
+        "{{ pbvars['BASE_DIR'] }}/librenms:/data:rw"
+      env_file:
+        /etc/sensa/librenms/librenms.env
+      restart_policy: "always"
+
+  - name: Run Cron container
+    docker_container:
+      name: 'librenms_cron'
+      image: librenms/librenms:latest
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      domainname: "{{ pbvars['DOMAIN'] }}"
+      hostname: "cron"
+      env:
+        TZ: "{{ pbvars['TZ'] }}"
+        PUID: "{{ pbvars['PUID'] }}"
+        PGID: "{{ pbvars['PGID'] }}"
+        DB_HOST: "librenms_db"
+        DB_NAME: "{{ pbvars['MYSQL_DATABASE'] }}"
+        DB_USER: "{{ pbvars['MYSQL_USER'] }}"
+        DB_PASSWORD: "{{ pbvars['MYSQL_PASSWORD'] }}"
+        DB_TIMEOUT: "30"
+        SIDECAR_CRON: "1"
+      volumes:
+        "{{ pbvars['BASE_DIR'] }}/librenms:/data:rw"
+      env_file:
+        /etc/sensa/librenms/librenms.env
+      restart_policy: "always"
+
+  - name: Run Syslog-ng container
+    docker_container:
+      name: 'librenms_syslog'
+      image: librenms/librenms:latest
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      domainname: "{{ pbvars['DOMAIN'] }}"
+      hostname: "syslog"
+      ports: 
+        - "0.0.0.0:514:514/tcp"
+        - "0.0.0.0:514:514/udp"
+      env:
+        TZ: "{{ pbvars['TZ'] }}"
+        PUID: "{{ pbvars['PUID'] }}"
+        PGID: "{{ pbvars['PGID'] }}"
+        DB_HOST: librenms_db
+        DB_NAME: "{{ pbvars['MYSQL_DATABASE'] }}"
+        DB_USER: "{{ pbvars['MYSQL_USER'] }}"
+        DB_PASSWORD: "{{ pbvars['MYSQL_PASSWORD'] }}"
+        DB_TIMEOUT: "30"
+        SIDECAR_SYSLOG: "1"
+      volumes:
+        "{{ pbvars['BASE_DIR'] }}/librenms:/data:rw"
+      env_file:
+        /etc/sensa/librenms/librenms.env
+      restart_policy: "always"
+
+  - name: Run Oxidized container 
+    docker_container:
+      name: 'librenms_oxidized'
+      image: 'oxidized/oxidized:latest'
+      state: 'started'
+      networks_cli_compatible: "yes"
+      networks:
+        - name: librenms_network
+      domainname: "{{ pbvars['DOMAIN'] }}"
+      hostname: "oxidized"
+      env:
+        CONFIG_RELOAD_INTERVAL: "600"
+      volumes:
+        "{{ pbvars['BASE_DIR'] }}/oxidized:/root/.config/oxidized"
+ 
+
+  # Configure installation
+  - name: Wait for librenms config table to be available
+    shell: docker run --network="librenms_network" --rm mysql sh -c 'mysql -hlibrenms_db -P3306 -u{{ pbvars["MYSQL_USER"] }} -p{{ pbvars["MYSQL_PASSWORD"] }}  -e "SELECT * FROM information_schema.tables WHERE table_schema = \"librenms\" AND table_name = \"config\" LIMIT 1;" || true'
+    register: conftablestatus
+    until: conftablestatus.stdout_lines
+    retries: "10"
+    delay: "3"
+
+  - name: Wait for librenms.users table to be available
+    shell: docker run --network="librenms_network" --rm mysql sh -c 'mysql -hlibrenms_db -P3306 -u{{ pbvars["MYSQL_USER"] }} -p{{ pbvars["MYSQL_PASSWORD"] }}  -e "SELECT * FROM information_schema.tables WHERE table_schema = \"librenms\" AND table_name = \"users\" LIMIT 1;" || true'
+    register: usertablestatus
+    until: usertablestatus.stdout_lines
+    retries: "10"
+    delay: "3"
+
+  - name: Wait for librenms.api_token table to be available
+    shell: docker run --network="librenms_network" --rm mysql sh -c 'mysql -hlibrenms_db -P3306 -u{{ pbvars["MYSQL_USER"] }} -p{{ pbvars["MYSQL_PASSWORD"] }}  -e "SELECT * FROM information_schema.tables WHERE table_schema = \"librenms\" AND table_name = \"api_tokens\" LIMIT 1;" || true'
+    register: apitablestatus
+    until: apitablestatus.stdout_lines
+    retries: "10"
+    delay: "3"
+    
+  - name: Wait for librenms to configure it's first user
+    shell: docker run --network="librenms_network" --rm mysql sh -c 'mysql -hlibrenms_db -P3306 -u{{ pbvars["MYSQL_USER"] }} -p{{ pbvars["MYSQL_PASSWORD"] }}  -e "SELECT * from librenms.users LIMIT 1;" || true'
+    register: libreuserstatus
+    until: libreuserstatus.stdout_lines
+    retries: "10"
+    delay: "3"
+
+  - name: Configure LibreNMS database for Oxidized integration
+    shell: docker run --network="librenms_network" --rm -v /etc/sensa/librenms/tmp:/tmp mysql sh -c 'mysql -hlibrenms_db -P3306 -u{{ pbvars["MYSQL_USER"] }} -p{{ pbvars["MYSQL_PASSWORD"] }} -Dlibrenms < /tmp/insert.sql'
+
+  - name: Enable syslog-ng 
+    copy:
+      content: "<?php $config['enable_syslog'] = 1; ?>"
+      dest: "{{ pbvars['BASE_DIR'] }}/librenms/config/syslog.php"
+
+  # Install NGINX and expose LibreNMS on port 80
+  - name: Ensure nginx is at latest version
+    apt: name=nginx state=latest 
+  
+  - name: Start nginx
+    service:
+      name: nginx
+      state: started
+
+  - name: Copy Librenms site config
+    copy: 
+      src: templates/nginx/site.cfg
+      dest: /etc/nginx/sites-available/librenms.cfg
+
+  - name: Symlink config
+    file:
+      src: /etc/nginx/sites-available/librenms.cfg
+      dest: /etc/nginx/sites-enabled/default
+      state: link 
+
+  - name: Restart nginx
+    service:
+      name: nginx
+      state: restarted

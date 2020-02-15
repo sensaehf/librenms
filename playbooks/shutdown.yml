@@ -1,0 +1,52 @@
+- hosts: localhost
+  tasks:
+  - name: Loading pbvars.yaml config file
+    include_vars:
+      file: /etc/sensa/librenms/pbvars.yaml
+      name: pbvars
+
+  - name: remove librenms_syslog
+    docker_container:
+      name: librenms_syslog
+      state: absent
+
+  - name: remove librenms_cron
+    docker_container:
+      name: librenms_cron
+      state: absent
+
+
+  - name: remove librenms
+    docker_container:
+      name: librenms
+      state: absent
+
+  - name: remove librenms_db
+    docker_container:
+      name: librenms_db
+      state: absent
+
+  - name: remove librenms_oxidized
+    docker_container:
+      name: librenms_oxidized
+      state: absent     
+
+  - name: remove librenms_rrdcached
+    docker_container:
+      name: librenms_rrdcached
+      state: absent  
+
+  - name: remove librenms_memcached
+    docker_container:
+      name: librenms_memcached
+      state: absent
+
+  - name: remove librenms_smtp
+    docker_container:
+      name: librenms_smtp
+      state: absent
+
+  - name: Remove Oxidized PID 
+    file:
+      path: "{{ pbvars['BASE_DIR'] }}/oxidized/pid"
+      state: absent

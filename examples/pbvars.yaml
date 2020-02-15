@@ -1,0 +1,23 @@
+# THIS FILE WILL BE AUTOGENERTED BY THE BOOTSTRAPPER
+# YOU CAN CONFIGURE THIS MANUALLY AND RUN docker-compose up -d 
+
+HOST: "librenms"
+DOMAIN: "example.corp"
+URL: "librenms.example.corp"
+
+MYSQL_DATABASE: "librenms"
+MYSQL_USER: "librenms"
+MYSQL_PASSWORD: "supersecuresqlpassword"
+
+SMTP_SERVER: "smtp.example.corp"
+SMTP_USERNAME: "librenms@example.corp"
+SMTP_PASSWORD: "supersecuresmtppassword"
+
+CPE_USERNAME: cisco
+CPE_PASSWORD: cisco
+API_TOKEN: SuperSecureAPIToken
+BASE_DIR: /home/librenms
+
+TZ: "Atlantic/Reykjavik"
+PUID: 1000
+PGID: 1000

@@ -1,0 +1,48 @@
+---
+username: {{ pbvars['CPE_USERNAME'] }}
+password: {{ pbvars['CPE_PASSWORD'] }}
+model: nx-os
+resolve_dns: true
+interval: 3600
+use_syslog: false
+debug: false
+threads: 30
+timeout: 20
+retries: 3
+prompt: !ruby/regexp /^([\w.@-]+[#>]\s?)$/
+rest: 0.0.0.0:8888
+next_adds_job: false
+vars: {}
+groups: {}
+models: {}
+pid: "/root/.config/oxidized/pid"
+crash:
+  directory: "/root/.config/oxidized/crashes"
+  hostnames: false
+stats:
+  history_size: 10
+input:
+  default: ssh, telnet
+  debug: false
+  ssh:
+    secure: false
+  ftp:
+    passive: true
+  utf8_encoded: true
+output:
+  default: file
+  file:
+    directory: "/root/.config/oxidized/configs"
+source:
+  default: http
+  http:
+    url: http://librenms:8000/api/v0/oxidized
+    map:
+      name: hostname
+      model: os
+      group: group
+    headers:
+      X-Auth-Token: {{ pbvars['API_TOKEN'] }}
+model_map:
+  juniper: junos
+  cisco: ios

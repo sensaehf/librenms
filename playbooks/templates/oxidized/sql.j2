@@ -1,0 +1,32 @@
+INSERT INTO librenms.config (config_name, config_value) 
+    VALUES ("email_smtp_host", "librenms_smtp")
+ON DUPLICATE KEY
+    UPDATE config_name=config_name;
+INSERT INTO librenms.config 
+    VALUES (NULL, "oxidized.enabled", "true") 
+ON DUPLICATE KEY 
+    UPDATE config_value="true";
+INSERT INTO librenms.config 
+    VALUES (NULL, "oxidized.features.versioning", "true") 
+ON DUPLICATE KEY 
+    UPDATE config_value="true";
+INSERT INTO librenms.config 
+    VALUES (NULL, "oxidized.group_support", "true") 
+ON DUPLICATE KEY 
+    UPDATE config_value="true";
+INSERT INTO librenms.config 
+    VALUES (NULL, "oxidized.reload_nodes", "true") 
+ON DUPLICATE KEY 
+    UPDATE config_value="true";
+INSERT INTO librenms.config 
+    VALUES (NULL, "oxidized.url", '"http://librenms_oxidized:8888"') 
+ON DUPLICATE KEY 
+    UPDATE config_value='"http://librenms_oxidized:8888"';
+INSERT INTO librenms.users (auth_type, username, realname, email, descr, level) 
+    VALUES ("mysql", "oxidized", "oxidized inventory", "oxidized@librenms.docker", "Oxidized Inventory Sync", 10)
+ON DUPLICATE KEY
+    UPDATE username=username;
+INSERT INTO librenms.api_tokens (user_id, token_hash, description) 
+    VALUES ((SELECT user_id FROM users WHERE username="oxidized"), "{{ pbvars['API_TOKEN'] }}", "Oxidized Router DB")
+ON DUPLICATE KEY
+    UPDATE token_hash=token_hash;
