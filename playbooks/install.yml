@@ -295,6 +295,7 @@
         CONFIG_RELOAD_INTERVAL: "600"
       volumes:
         "{{ pbvars['BASE_DIR'] }}/oxidized:/root/.config/oxidized"
+      restart_policy: "always"
  
 
   # Configure installation

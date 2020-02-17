@@ -69,7 +69,7 @@ then
     echo ""
     echo "Would you like to run the configure script now? (Y/n)"
     read doconf
-    if [ "$doconf" == "n" ]
+    if [ "$doconf" = "n" ]
     then
 	    exit 0
     fi
