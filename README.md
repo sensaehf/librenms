@@ -10,7 +10,7 @@ Converted to Ansible playbook
 
 ## Installation
 
-Quickest way to install is to use the kickstart. Currently only available for Ubuntu.
+Quickest way to install is to use the kickstart. Currently only available for Ubuntu [click here for ubuntu setup instructions](https://github.com/sensaehf/librenms/blob/master/docs/ubuntu-install.md).
 
 `curl https://raw.githubusercontent.com/sensaehf/librenms/master/kickstart/ubuntu.sh | sh`
 
