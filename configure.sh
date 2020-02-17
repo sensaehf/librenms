@@ -48,7 +48,7 @@ then
 fi
 if [ ! -f "/usr/share/zoneinfo/posix/$TZ" ]
 then
-	"Echo Invalid TimeZone $TZ, setting to default"
+	echo "Invalid TimeZone $TZ, setting to default"
 	TZ="Atlantic/Reykjavik"
 fi
 
@@ -93,5 +93,5 @@ fi
 
 if [ -f "/etc/sensa/librenms" ]
 then
-    ln -s pbvars.yaml /etc/sensa/librenms/pbvars.yaml
+    sudo cp pbvars.yaml /etc/sensa/librenms/pbvars.yaml
 fi

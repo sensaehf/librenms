@@ -57,8 +57,7 @@ if [ -z "$CFGPath" ]
 then
     if [ ! "$CFGPath" == "/etc/sensa/librenms/pbvars.yaml" ]
     then
-        sudo rm /etc/sensa/librenms/pbvars.yaml
-        sudo ln -s $CFGPath /etc/sensa/librenms/pbvars.yaml
+        sudo cp $CFGPath /etc/sensa/librenms/pbvars.yaml
     fi
 fi
 echo "Checking for pbvars config"
@@ -76,7 +75,7 @@ then
     fi
     sudo sh configure.sh
 fi
-sudo ansible-playbook playbooks/install.yml
+sudo ansible-playbook /etc/sensa/librenms/playbooks/install.yml
 echo ""
 echo "Configuration file with generated passwords can be found in"
 echo "/etc/sensa/librenms/pbvars.yaml please store file in a safe"
