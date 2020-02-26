@@ -359,3 +359,14 @@
     service:
       name: nginx
       state: restarted
+
+  - name: Add librenms machine to LibreNMS 
+    uri:
+      url: http://127.0.0.1/api/v0/devices
+      method: POST
+      body:
+        hostname: "172.18.0.1"
+        version: "v2c"
+        community: "librenms"
+      headers:
+        X-Auth-Token: "{{ pbvars['API_TOKEN'] }}"

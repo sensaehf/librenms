@@ -10,6 +10,9 @@ sudo apt-add-repository ppa:ansible/ansible -y
 sudo apt-get update
 sudo apt-get install ansible -y
 
+# Install snmp and snmpd
+apt-get -y install snmpd snmp
+
 # Install git
 echo "Installing git"
 sudo apt-get install git -y
@@ -23,6 +26,7 @@ sudo systemctl start docker
 sudo systemctl enable docker
 sudo usermod -a -G docker librenms
 sudo apt-get install python-docker -y
+
 
 # Check for config in current dir
 echo "checking for config in current dir"
@@ -76,6 +80,18 @@ then
     sudo sh configure.sh
 fi
 sudo ansible-playbook /etc/sensa/librenms/playbooks/install.yml
+
+
+
+# Install and configure machine snmp
+sudo iptables -A INPUT -p tcp -m tcp --dport 161 -i docker0 -j ACCEPT
+sudo cp /etc/sensa/librenms/examples/snmpd.conf /etc/snmp/snmpd.conf
+sudo curl -o /usr/bin/distro https://raw.githubusercontent.com/librenms/librenms-agent/master/snmp/distro
+sudo chmod +x /usr/bin/distro
+sudo systemctl restart snmpd
+sudo systemctl enable snmpd
+
+
 echo ""
 echo "Configuration file with generated passwords can be found in"
 echo "/etc/sensa/librenms/pbvars.yaml please store file in a safe"
